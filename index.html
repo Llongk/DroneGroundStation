@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+    <title>无人机 GPS 发送器</title>
+    <style>
+        :root { color-scheme: dark; font-family: system-ui, sans-serif; }
+        body { margin: 0; background: #101820; color: #fff; }
+        main { max-width: 680px; margin: auto; padding: 20px; }
+        h1 { color: #d7b75b; font-size: 26px; margin: 4px 0 18px; }
+        h2 { margin: 0 0 12px; font-size: 18px; color: #dce8ef; }
+        .card { background: #1b2631; border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+        .status { padding: 12px; border-radius: 10px; background: #263746; line-height: 1.5; }
+        .status.ok { background: #164c39; }
+        .status.error { background: #652f34; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .value { background: #101820; border-radius: 9px; padding: 12px; }
+        .value span { display: block; color: #91a4b4; font-size: 13px; }
+        .value strong { display: block; margin-top: 5px; font-size: 18px; word-break: break-all; }
+        label { display: block; color: #91a4b4; margin-bottom: 7px; }
+        input { box-sizing: border-box; width: 100%; padding: 12px; border: 1px solid #496171;
+                border-radius: 9px; background: #101820; color: #fff; font-size: 16px; }
+        button { width: 100%; padding: 14px; border: 0; border-radius: 10px;
+                 background: #d7b75b; color: #151515; font-weight: 700; font-size: 17px; }
+        button.secondary { margin-top: 10px; background: #365064; color: #fff; }
+        small { display: block; margin-top: 8px; color: #91a4b4; line-height: 1.5; }
+        .sensor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .sensor-state { margin-top: 10px; color: #91a4b4; }
+    </style>
+</head>
+<body>
+<main>
+    <h1>无人机 GPS 发送器</h1>
+
+    <section class="card">
+        <div id="status" class="status">请点击“开始发送 GPS”并允许定位权限。</div>
+    </section>
+
+    <section class="card">
+        <label for="server">地面站地址</label>
+        <input id="server" autocomplete="url" inputmode="url">
+        <small id="endpointHint"></small>
+    </section>
+
+    <section class="card">
+        <h2>环境温湿度</h2>
+        <div class="sensor-grid">
+            <label>温度（℃）
+                <input id="temperature" type="number" value="25" min="-50" max="100" step="0.1" inputmode="decimal">
+            </label>
+            <label>湿度（%）
+                <input id="humidity" type="number" value="60" min="0" max="100" step="0.1" inputmode="decimal">
+            </label>
+        </div>
+        <div class="sensor-state">温湿度上传：<strong id="sensorUpload">等待发送</strong></div>
+        <small>手机浏览器无法直接读取环境温湿度；这里可填写外部传感器读数，数据会自动同步到 Qt。</small>
+    </section>
+
+    <section class="card grid">
+        <div class="value"><span>纬度</span><strong id="lat">--</strong></div>
+        <div class="value"><span>经度</span><strong id="lon">--</strong></div>
+        <div class="value"><span>定位精度</span><strong id="accuracy">--</strong></div>
+        <div class="value"><span>高度</span><strong id="height">--</strong></div>
+        <div class="value"><span>上传状态</span><strong id="upload">未开始</strong></div>
+        <div class="value"><span>更新时间</span><strong id="time">--</strong></div>
+    </section>
+
+    <section class="card">
+        <button id="startButton" type="button">开始发送 GPS</button>
+        <button id="sensorButton" class="secondary" type="button">启用手机姿态传感器</button>
+    </section>
+</main>
+
+<script>
+"use strict";
+
+const elements = {
+    status: document.getElementById("status"),
+    server: document.getElementById("server"),
+    endpointHint: document.getElementById("endpointHint"),
+    lat: document.getElementById("lat"),
+    lon: document.getElementById("lon"),
+    accuracy: document.getElementById("accuracy"),
+    height: document.getElementById("height"),
+    upload: document.getElementById("upload"),
+    time: document.getElementById("time"),
+    startButton: document.getElementById("startButton"),
+    sensorButton: document.getElementById("sensorButton"),
+    temperature: document.getElementById("temperature"),
+    humidity: document.getElementById("humidity"),
+    sensorUpload: document.getElementById("sensorUpload")
+};
+
+const pageIsServedByGroundStation =
+    location.protocol === "http:" || location.protocol === "https:";
+const rememberedServer = localStorage.getItem("groundStationUrl") || "";
+elements.server.value = pageIsServedByGroundStation
+    ? location.origin
+    : rememberedServer;
+
+let watchId = null;
+let hasGpsFix = false;
+let sending = false;
+let sensorSending = false;
+
+elements.temperature.value = localStorage.getItem("sensorTemperature") || "25";
+elements.humidity.value = localStorage.getItem("sensorHumidity") || "60";
+
+const droneData = {
+    latitude: 0,
+    longitude: 0,
+    accuracy: 0,
+    gpsSpeed: 0,
+    heading: null,
+    height: 0,
+    pitch: 0,
+    roll: 0,
+    yaw: 0,
+    battery: 100,
+    time: ""
+};
+
+function setStatus(message, type) {
+    elements.status.textContent = message;
+    elements.status.className = "status" + (type ? " " + type : "");
+}
+
+function normalizedServerUrl() {
+    let value = elements.server.value.trim().replace(/\/+$/, "");
+    if (value && !/^https?:\/\//i.test(value)) {
+        value = "http://" + value;
+    }
+    return value;
+}
+
+function gpsEndpoint() {
+    const base = normalizedServerUrl();
+    return base ? base + "/gps" : "";
+}
+
+function sensorEndpoint() {
+    const base = normalizedServerUrl();
+    return base ? base + "/sensor" : "";
+}
+
+function updateEndpointHint() {
+    const endpoint = gpsEndpoint();
+    elements.endpointHint.textContent = endpoint
+        ? "GPS 将自动发送到：" + endpoint
+        : "请填写地面站主界面显示的热点访问地址";
+}
+
+elements.server.addEventListener("change", function () {
+    const base = normalizedServerUrl();
+    elements.server.value = base;
+    localStorage.setItem("groundStationUrl", base);
+    updateEndpointHint();
+});
+updateEndpointHint();
+
+function renderPosition() {
+    elements.lat.textContent = droneData.latitude.toFixed(7);
+    elements.lon.textContent = droneData.longitude.toFixed(7);
+    elements.accuracy.textContent = droneData.accuracy.toFixed(0) + " 米";
+    elements.height.textContent = droneData.height.toFixed(1) + " 米";
+    elements.time.textContent = droneData.time;
+}
+
+function onPosition(position) {
+    const coords = position.coords;
+    droneData.latitude = coords.latitude;
+    droneData.longitude = coords.longitude;
+    droneData.accuracy = coords.accuracy || 0;
+    droneData.gpsSpeed = coords.speed || 0;
+    droneData.heading = coords.heading;
+    droneData.height = coords.altitude || 0;
+    droneData.time = new Date().toLocaleTimeString();
+    hasGpsFix = true;
+    renderPosition();
+    setStatus("GPS 定位成功，正在向地面站发送数据。", "ok");
+    sendGps();
+}
+
+function onPositionError(error) {
+    const messages = {
+        1: "定位权限被拒绝，请在浏览器的网站设置中允许位置权限。",
+        2: "暂时无法获得位置，请打开手机定位和高精度定位。",
+        3: "GPS 定位超时，请移动到室外后重试。"
+    };
+    let message = messages[error.code] || ("定位失败：" + error.message);
+    if (!window.isSecureContext) {
+        message += " 当前页面不是安全上下文；若浏览器禁止定位，请改用支持局域网页面定位的浏览器或 HTTPS。";
+    }
+    setStatus(message, "error");
+}
+
+function startGps() {
+    const endpoint = gpsEndpoint();
+    if (!endpoint) {
+        setStatus("请先填写地面站主界面显示的访问地址。", "error");
+        return;
+    }
+    if (!("geolocation" in navigator)) {
+        setStatus("当前浏览器不支持 GPS 定位。", "error");
+        return;
+    }
+
+    localStorage.setItem("groundStationUrl", normalizedServerUrl());
+    setStatus("正在申请定位权限并搜索 GPS……");
+    elements.startButton.textContent = "GPS 发送中";
+
+    if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+    }
+    watchId = navigator.geolocation.watchPosition(
+        onPosition,
+        onPositionError,
+        { enableHighAccuracy: true, maximumAge: 1000, timeout: 15000 }
+    );
+}
+
+async function sendGps() {
+    if (!hasGpsFix || sending) {
+        return;
+    }
+    const endpoint = gpsEndpoint();
+    if (!endpoint) {
+        return;
+    }
+
+    sending = true;
+    try {
+        const response = await fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(droneData)
+        });
+        if (!response.ok) {
+            throw new Error("HTTP " + response.status);
+        }
+        elements.upload.textContent = "成功";
+        elements.upload.style.color = "#75e0ad";
+    } catch (error) {
+        elements.upload.textContent = "失败";
+        elements.upload.style.color = "#ff8a8a";
+        setStatus("GPS 已获取，但连接地面站失败：" + error.message, "error");
+    } finally {
+        sending = false;
+    }
+}
+
+async function sendSensor() {
+    if (sensorSending) {
+        return;
+    }
+
+    const endpoint = sensorEndpoint();
+    const temperature = Number(elements.temperature.value);
+    const humidity = Number(elements.humidity.value);
+    if (!endpoint
+            || !Number.isFinite(temperature)
+            || !Number.isFinite(humidity)
+            || temperature < -50
+            || temperature > 100
+            || humidity < 0
+            || humidity > 100) {
+        elements.sensorUpload.textContent = "数值无效";
+        elements.sensorUpload.style.color = "#ff8a8a";
+        return;
+    }
+
+    localStorage.setItem("sensorTemperature", String(temperature));
+    localStorage.setItem("sensorHumidity", String(humidity));
+    sensorSending = true;
+
+    try {
+        const response = await fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ temperature: temperature, humidity: humidity })
+        });
+        if (!response.ok) {
+            throw new Error("HTTP " + response.status);
+        }
+        elements.sensorUpload.textContent = "已同步";
+        elements.sensorUpload.style.color = "#75e0ad";
+    } catch (error) {
+        elements.sensorUpload.textContent = "发送失败";
+        elements.sensorUpload.style.color = "#ff8a8a";
+    } finally {
+        sensorSending = false;
+    }
+}
+
+async function startOrientation() {
+    try {
+        if (typeof DeviceOrientationEvent !== "undefined"
+                && typeof DeviceOrientationEvent.requestPermission === "function") {
+            const permission = await DeviceOrientationEvent.requestPermission();
+            if (permission !== "granted") {
+                throw new Error("姿态传感器权限被拒绝");
+            }
+        }
+
+        window.addEventListener("deviceorientation", function (event) {
+            droneData.pitch = event.beta || 0;
+            droneData.roll = event.gamma || 0;
+            droneData.yaw = event.alpha || 0;
+        }, true);
+        elements.sensorButton.textContent = "姿态传感器已启用";
+    } catch (error) {
+        setStatus(error.message, "error");
+    }
+}
+
+elements.startButton.addEventListener("click", startGps);
+elements.sensorButton.addEventListener("click", startOrientation);
+elements.temperature.addEventListener("change", sendSensor);
+elements.humidity.addEventListener("change", sendSensor);
+setInterval(sendGps, 1000);
+setInterval(sendSensor, 1000);
+</script>
+</body>
+</html>

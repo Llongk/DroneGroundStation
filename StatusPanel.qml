@@ -2,9 +2,12 @@ import QtQuick
 import QtQuick.Controls
 
 Rectangle {
+    id: root
+
     property var abnormalList: []
     property string flightId: ""
     property int updateFlag: 0
+    readonly property bool hasAbnormalData: abnormalList && abnormalList.length > 0
 
     // 根据选中历史会话更新状态摘要和异常列表。
     function updateData(data, id) {
@@ -101,6 +104,36 @@ Rectangle {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    // 选中的历史会话存在异常点时，面板边缘以较慢节奏闪动。
+    Rectangle {
+        anchors.fill: parent
+        border.color: "#ff4655"
+        border.width: 4
+        color: "transparent"
+        opacity: 1
+        radius: 10
+        visible: root.hasAbnormalData
+        z: 20
+
+        SequentialAnimation on opacity {
+            loops: Animation.Infinite
+            running: root.hasAbnormalData
+
+            NumberAnimation {
+                duration: 650
+                easing.type: Easing.InOutQuad
+                from: 0.2
+                to: 1.0
+            }
+            NumberAnimation {
+                duration: 650
+                easing.type: Easing.InOutQuad
+                from: 1.0
+                to: 0.2
             }
         }
     }

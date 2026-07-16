@@ -6,6 +6,7 @@ Rectangle {
     id: root
 
     property string warningText: "等待 STM32 遥测数据"
+    property bool hasActiveAlarm: false
 
     signal backRequested
 
@@ -49,6 +50,26 @@ Rectangle {
                 && Math.abs(sensorBackend.stm32Longitude) < 0.000001)
             messages.push("STM32 定位坐标无效 (0, 0)");
 
+        // 断线和等待遥测只显示状态；有效遥测越过阈值时才启动闪动提醒。
+        hasActiveAlarm = sensorBackend.telemetryValid
+                && (sensorBackend.alarmCode !== 0
+                    || sensorBackend.stm32Battery < 20
+                    || sensorBackend.mcuTemperature > 75
+                    || sensorBackend.mcuTemperature < -20
+                    || sensorBackend.dhtTemperature < -20
+                    || sensorBackend.dhtTemperature > 50
+                    || sensorBackend.shtTemperature < -20
+                    || sensorBackend.shtTemperature > 50
+                    || sensorBackend.dhtHumidity < 10
+                    || sensorBackend.dhtHumidity > 90
+                    || sensorBackend.shtHumidity < 10
+                    || sensorBackend.shtHumidity > 90
+                    || sensorBackend.stm32Speed > 50
+                    || sensorBackend.targetAltitude < 0
+                    || sensorBackend.targetAltitude > 500
+                    || sensorBackend.rthDistance > 2000
+                    || (Math.abs(sensorBackend.stm32Latitude) < 0.000001
+                        && Math.abs(sensorBackend.stm32Longitude) < 0.000001));
         warningText = messages.length > 0 ? messages.join("\n") : "STM32 系统运行正常";
     }
 
@@ -657,6 +678,37 @@ Rectangle {
                         }
                     }
                 }
+            }
+        }
+    }
+    // 无论当前选择遥测、曲线还是告警标签，真实异常都会在页面边缘闪动。
+    Rectangle {
+        id: alarmFlashFrame
+
+        anchors.fill: parent
+        border.color: "#ff4655"
+        border.width: 5
+        color: "transparent"
+        opacity: 1
+        radius: 3
+        visible: root.hasActiveAlarm
+        z: 100
+
+        SequentialAnimation on opacity {
+            loops: Animation.Infinite
+            running: root.hasActiveAlarm
+
+            NumberAnimation {
+                duration: 520
+                easing.type: Easing.InOutQuad
+                from: 0.18
+                to: 1.0
+            }
+            NumberAnimation {
+                duration: 520
+                easing.type: Easing.InOutQuad
+                from: 1.0
+                to: 0.18
             }
         }
     }

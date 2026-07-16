@@ -9,6 +9,7 @@ Rectangle {
     property string lastGpsTime: "--"
     property bool stm32PromptShown: false
     property string warningMessage: "等待无人机数据"
+    property bool hasActiveAlarm: false
 
     signal openHistoryRequested
     signal openStm32Requested
@@ -44,6 +45,15 @@ Rectangle {
         if (backend.accuracy > 50) {
             messages.push("GPS 精度异常：误差 " + backend.accuracy.toFixed(1) + " m（上限 50 m）");
         }
+        // 连接等待只作状态提示；只有真实遥测越过阈值时才启动闪动提醒。
+        hasActiveAlarm = (sensorBackend.temperature < -20 || sensorBackend.temperature > 40)
+                || sensorBackend.humidity > 90
+                || Math.abs(backend.roll) > 50
+                || Math.abs(backend.pitch) > 50
+                || (connectionStatus && backend.battery > 0 && backend.battery < 20)
+                || backend.speed > 50
+                || backend.height < -100 || backend.height > 500
+                || backend.accuracy > 50;
         warningMessage = messages.length > 0 ? messages.join("\n") : "系统运行正常";
     }
 
@@ -409,6 +419,37 @@ Rectangle {
             MapView {
                 anchors.fill: parent
                 anchors.margins: 1
+            }
+        }
+    }
+    // 页面边缘持续呼吸闪动，使用户未切换到“告警”标签时也能看到异常。
+    Rectangle {
+        id: alarmFlashFrame
+
+        anchors.fill: parent
+        border.color: "#ff4655"
+        border.width: 5
+        color: "transparent"
+        opacity: 1
+        radius: 3
+        visible: root.hasActiveAlarm
+        z: 100
+
+        SequentialAnimation on opacity {
+            loops: Animation.Infinite
+            running: root.hasActiveAlarm
+
+            NumberAnimation {
+                duration: 520
+                easing.type: Easing.InOutQuad
+                from: 0.18
+                to: 1.0
+            }
+            NumberAnimation {
+                duration: 520
+                easing.type: Easing.InOutQuad
+                from: 1.0
+                to: 0.18
             }
         }
     }

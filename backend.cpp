@@ -11,6 +11,7 @@
 namespace {
 constexpr quint16 kGpsPort = 8080;
 
+//! 判断地址是否为可用于局域网通信的非回环 IPv4。
 bool isUsableIpv4(const QHostAddress &address)
 {
     if (address.protocol() != QAbstractSocket::IPv4Protocol
@@ -31,6 +32,7 @@ Backend::Backend(QObject *parent)
 {
     m_phonePresenceTimer->setSingleShot(true);
     m_phonePresenceTimer->setInterval(8000);
+    // 手机租约到期后释放设备占用并允许 STM32 恢复检测。
     connect(m_phonePresenceTimer, &QTimer::timeout, this, [this]() {
         if (!m_phoneConnected)
             return;

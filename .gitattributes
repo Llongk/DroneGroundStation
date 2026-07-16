@@ -1,0 +1,10 @@
+# Keep source files stable across Windows and Unix development environments.
+* text=auto
+*.cpp text eol=lf
+*.h text eol=lf
+*.qml text eol=lf
+*.html text eol=lf
+*.md text eol=lf
+CMakeLists.txt text eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf

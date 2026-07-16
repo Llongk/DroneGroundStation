@@ -6,87 +6,91 @@ import QtPositioning 6.5
 
 Rectangle {
     id: root
-    color: "#101a24"
-    radius: 12
-    clip: true
 
     property var currentCoordinate: QtPositioning.coordinate(39.9042, 116.4074)
-    property var rthCoordinate: QtPositioning.coordinate(0, 0)
-    property var trajectory: []
+    property bool followDrone: true
     property bool hasPosition: false
     property bool hasRthPosition: false
-    property bool followDrone: true
     property int lastTelemetrySequence: -1
+    property var rthCoordinate: QtPositioning.coordinate(0, 0)
+    property var trajectory: []
 
-    function validCoordinate(lat, lng) {
-        return isFinite(lat) && isFinite(lng)
-                && lat >= -90 && lat <= 90
-                && lng >= -180 && lng <= 180
-                && !(Math.abs(lat) < 0.000001 && Math.abs(lng) < 0.000001)
-    }
-
+    // 使用最新有效 STM32 坐标更新标记、轨迹和跟随中心。
     function updatePosition() {
-        if (!validCoordinate(sensorBackend.stm32Latitude,
-                             sensorBackend.stm32Longitude)) {
-            return
+        if (!validCoordinate(sensorBackend.stm32Latitude, sensorBackend.stm32Longitude)) {
+            return;
         }
 
         var coordinate = QtPositioning.coordinate(sensorBackend.stm32Latitude,
-                                                   sensorBackend.stm32Longitude)
+                                                  sensorBackend.stm32Longitude);
         if (!hasPosition) {
-            trajectory = []
-            map.zoomLevel = 18
+            trajectory = [];
+            map.zoomLevel = 18;
         }
-        hasPosition = true
-        currentCoordinate = coordinate
+        hasPosition = true;
+        currentCoordinate = coordinate;
 
-        var points = trajectory.slice(0)
-        var shouldAppend = points.length === 0
+        var points = trajectory.slice(0);
+        var shouldAppend = points.length === 0;
         if (!shouldAppend) {
-            var distance = points[points.length - 1].distanceTo(coordinate)
+            var distance = points[points.length - 1].distanceTo(coordinate);
             // STM32 telemetry is emitted with six decimal places.  Keep every
             // real coordinate change instead of waiting for a two-metre jump.
-            shouldAppend = isFinite(distance) && distance >= 0.05
+            shouldAppend = isFinite(distance) && distance >= 0.05;
         }
         if (shouldAppend) {
-            points.push(coordinate)
-            route.addCoordinate(coordinate)
+            points.push(coordinate);
+            route.addCoordinate(coordinate);
             if (points.length > 1000) {
-                points.shift()
-                route.removeCoordinate(0)
+                points.shift();
+                route.removeCoordinate(0);
             }
-            trajectory = points
+            trajectory = points;
         }
-        lastTelemetrySequence = sensorBackend.sequence
+        lastTelemetrySequence = sensorBackend.sequence;
 
-        if (validCoordinate(sensorBackend.rthLatitude,
-                            sensorBackend.rthLongitude)) {
-            hasRthPosition = true
+        if (validCoordinate(sensorBackend.rthLatitude, sensorBackend.rthLongitude)) {
+            hasRthPosition = true;
             rthCoordinate = QtPositioning.coordinate(sensorBackend.rthLatitude,
-                                                      sensorBackend.rthLongitude)
+                                                     sensorBackend.rthLongitude);
         } else {
-            hasRthPosition = false
+            hasRthPosition = false;
         }
 
-        if (followDrone) map.center = coordinate
+        if (followDrone)
+            map.center = coordinate;
+    }
+    // 判断 STM32 坐标是否为可绘制的有效地理位置。
+    function validCoordinate(lat, lng) {
+        return isFinite(lat) && isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng
+                <= 180 && !(Math.abs(lat) < 0.000001 && Math.abs(lng) < 0.000001);
+    }
+
+    clip: true
+    color: "#101a24"
+    radius: 12
+
+    Component.onCompleted: {
+        if (sensorBackend.telemetryValid)
+            updatePosition();
     }
 
     Connections {
+        // 每次有效遥测到达后更新 STM32 地图。
+        function onTelemetryChanged() {
+            root.updatePosition();
+        }
+
         target: sensorBackend
-        function onTelemetryChanged() { root.updatePosition() }
     }
-
-    Component.onCompleted: {
-        if (sensorBackend.telemetryValid) updatePosition()
-    }
-
     Rectangle {
         id: mapHeader
+
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
-        height: 48
         color: "#14232e"
+        height: 48
         z: 5
 
         RowLayout {
@@ -95,224 +99,227 @@ Rectangle {
             anchors.rightMargin: 14
 
             Text {
-                text: "STM32 实时航线"
                 color: "#f0c65b"
-                font.pixelSize: 17
                 font.bold: true
+                font.pixelSize: 17
+                text: "STM32 实时航线"
             }
-
-            Item { Layout.fillWidth: true }
-
+            Item {
+                Layout.fillWidth: true
+            }
             Text {
-                text: root.hasPosition
-                      ? root.currentCoordinate.latitude.toFixed(6) + ", "
-                        + root.currentCoordinate.longitude.toFixed(6)
-                      : "等待有效坐标"
                 color: root.hasPosition ? "#dce9ee" : "#748b99"
                 font.pixelSize: 12
+                text: root.hasPosition ? root.currentCoordinate.latitude.toFixed(6) + ", "
+                                         + root.currentCoordinate.longitude.toFixed(6) : "等待有效坐标"
             }
         }
     }
-
     Map {
         id: map
-        anchors.top: mapHeader.bottom
+
+        anchors.bottom: parent.bottom
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.bottom: parent.bottom
+        anchors.top: mapHeader.bottom
         center: root.currentCoordinate
-        zoomLevel: 18
-        minimumZoomLevel: 3
         maximumZoomLevel: 20
+        minimumZoomLevel: 3
+        zoomLevel: 18
 
-        plugin: Plugin { name: "osm" }
+        plugin: Plugin {
+            name: "osm"
+        }
 
         DragHandler {
             id: stmMapDragHandler
+
             target: null
+
             onActiveChanged: {
                 if (active)
-                    root.followDrone = false
+                    root.followDrone = false;
             }
-            onTranslationChanged: function(delta) {
-                map.pan(-delta.x, -delta.y)
+            // 将拖动手势位移转换为 STM32 地图平移。
+            onTranslationChanged: function (delta) {
+                map.pan(-delta.x, -delta.y);
             }
         }
-
         PinchHandler {
             id: stmMapPinchHandler
-            target: null
+
             property var startCoordinate
+
+            target: null
 
             onActiveChanged: {
                 if (active) {
-                    root.followDrone = false
-                    startCoordinate = map.toCoordinate(centroid.position, false)
+                    root.followDrone = false;
+                    startCoordinate = map.toCoordinate(centroid.position, false);
                 }
             }
-            onScaleChanged: function(delta) {
+            // 根据双指缩放倍率调整 STM32 地图级别。
+            onScaleChanged: function (delta) {
                 if (!startCoordinate || !startCoordinate.isValid)
-                    return
-                map.zoomLevel = Math.max(map.minimumZoomLevel,
-                                         Math.min(map.maximumZoomLevel,
-                                                  map.zoomLevel + Math.log(delta) / Math.LN2))
-                map.alignCoordinateToPoint(startCoordinate, centroid.position)
+                    return;
+                map.zoomLevel = Math.max(map.minimumZoomLevel, Math.min(map.maximumZoomLevel,
+                                                                        map.zoomLevel + Math.log(
+                                                                            delta) / Math.LN2));
+                map.alignCoordinateToPoint(startCoordinate, centroid.position);
             }
         }
-
         WheelHandler {
             id: stmMapWheelHandler
+
             acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
-            onWheel: function(event) {
-                root.followDrone = false
-                var anchorCoordinate = map.toCoordinate(point.position, false)
-                map.zoomLevel = Math.max(map.minimumZoomLevel,
-                                         Math.min(map.maximumZoomLevel,
-                                                  map.zoomLevel + event.angleDelta.y / 120))
+
+            // 根据鼠标滚轮缩放 STM32 地图。
+            onWheel: function (event) {
+                root.followDrone = false;
+                var anchorCoordinate = map.toCoordinate(point.position, false);
+                map.zoomLevel = Math.max(map.minimumZoomLevel, Math.min(map.maximumZoomLevel,
+                                                                        map.zoomLevel
+                                                                        + event.angleDelta.y
+                                                                        / 120));
                 if (anchorCoordinate && anchorCoordinate.isValid)
-                    map.alignCoordinateToPoint(anchorCoordinate, point.position)
+                    map.alignCoordinateToPoint(anchorCoordinate, point.position);
             }
         }
-
         MapPolyline {
             id: route
-            line.width: 7
+
             line.color: "#6b3515bb"
+            line.width: 7
         }
-
         MapPolyline {
-            path: root.trajectory
-            line.width: 3
             line.color: "#ffad3d"
+            line.width: 3
+            path: root.trajectory
         }
-
         MapPolyline {
-            visible: root.hasPosition && root.hasRthPosition
-            path: [root.currentCoordinate, root.rthCoordinate]
-            line.width: 2
             line.color: "#57d9ad"
+            line.width: 2
+            path: [root.currentCoordinate, root.rthCoordinate]
+            visible: root.hasPosition && root.hasRthPosition
         }
-
         MapQuickItem {
-            visible: root.hasPosition
-            coordinate: root.currentCoordinate
             anchorPoint.x: 21
             anchorPoint.y: 21
+            coordinate: root.currentCoordinate
+            visible: root.hasPosition
 
             sourceItem: Rectangle {
-                width: 42
-                height: 42
-                radius: 21
-                color: "#ff9f2f"
                 border.color: "white"
                 border.width: 2
+                color: "#ff9f2f"
+                height: 42
+                radius: 21
                 rotation: sensorBackend.heading
+                width: 42
 
                 Text {
                     anchors.centerIn: parent
-                    text: "▲"
                     color: "#152029"
-                    font.pixelSize: 18
                     font.bold: true
+                    font.pixelSize: 18
+                    text: "▲"
                 }
             }
         }
-
         MapQuickItem {
-            visible: root.hasRthPosition
-            coordinate: root.rthCoordinate
             anchorPoint.x: 16
             anchorPoint.y: 16
+            coordinate: root.rthCoordinate
+            visible: root.hasRthPosition
 
             sourceItem: Rectangle {
-                width: 32
-                height: 32
-                radius: 16
-                color: "#2a9d78"
                 border.color: "white"
                 border.width: 2
+                color: "#2a9d78"
+                height: 32
+                radius: 16
+                width: 32
 
                 Text {
                     anchors.centerIn: parent
-                    text: "H"
                     color: "white"
                     font.bold: true
+                    text: "H"
                 }
             }
         }
     }
-
     Column {
+        anchors.margins: 12
         anchors.right: parent.right
         anchors.top: mapHeader.bottom
-        anchors.margins: 12
         spacing: 4
         z: 7
 
         Button {
-            width: 38
+            enabled: map.zoomLevel < map.maximumZoomLevel
+            font.bold: true
+            font.pixelSize: 20
             height: 36
             text: "+"
-            font.pixelSize: 20
-            font.bold: true
-            enabled: map.zoomLevel < map.maximumZoomLevel
+            width: 38
+
             onClicked: {
-                root.followDrone = false
-                map.zoomLevel = Math.min(map.maximumZoomLevel, map.zoomLevel + 1)
+                root.followDrone = false;
+                map.zoomLevel = Math.min(map.maximumZoomLevel, map.zoomLevel + 1);
             }
         }
-
         Rectangle {
-            width: 38
+            border.color: "#47616f"
+            color: "#101820dd"
             height: 24
             radius: 4
-            color: "#101820dd"
-            border.color: "#47616f"
+            width: 38
 
             Text {
                 anchors.centerIn: parent
-                text: Math.round(map.zoomLevel)
                 color: "#dce9ee"
-                font.pixelSize: 11
                 font.bold: true
+                font.pixelSize: 11
+                text: Math.round(map.zoomLevel)
             }
         }
-
         Button {
-            width: 38
+            enabled: map.zoomLevel > map.minimumZoomLevel
+            font.bold: true
+            font.pixelSize: 20
             height: 36
             text: "−"
-            font.pixelSize: 20
-            font.bold: true
-            enabled: map.zoomLevel > map.minimumZoomLevel
+            width: 38
+
             onClicked: {
-                root.followDrone = false
-                map.zoomLevel = Math.max(map.minimumZoomLevel, map.zoomLevel - 1)
+                root.followDrone = false;
+                map.zoomLevel = Math.max(map.minimumZoomLevel, map.zoomLevel - 1);
             }
         }
     }
-
     Row {
-        anchors.right: parent.right
         anchors.bottom: parent.bottom
         anchors.margins: 12
+        anchors.right: parent.right
         spacing: 8
         z: 6
 
         Button {
             text: root.followDrone ? "跟随中" : "重新跟随"
+
             onClicked: {
-                root.followDrone = !root.followDrone
+                root.followDrone = !root.followDrone;
                 if (root.followDrone && root.hasPosition)
-                    map.center = root.currentCoordinate
+                    map.center = root.currentCoordinate;
             }
         }
-
         Button {
             text: "清除航线"
+
             onClicked: {
-                route.path = []
-                root.trajectory = []
+                route.path = [];
+                root.trajectory = [];
             }
         }
     }

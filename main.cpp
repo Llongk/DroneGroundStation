@@ -11,6 +11,7 @@
 #include "historydatabase.h"
 #include "sensorbackend.h"
 
+//! 创建后端对象、注册 QML 上下文并启动 Qt 事件循环。
 int main(int argc, char *argv[])
 {
     // The Windows native style does not allow the customized QML
@@ -28,6 +29,7 @@ int main(int argc, char *argv[])
     QQmlEngine::setObjectOwnership(&sensorBackend, QQmlEngine::CppOwnership);
     QQmlEngine::setObjectOwnership(&historyDatabase, QQmlEngine::CppOwnership);
 
+    // 在手机活动租约变化时切换 STM32 检测状态。
     QObject::connect(&backend,
                      &Backend::sensorDataReceived,
                      &sensorBackend,
@@ -41,6 +43,7 @@ int main(int argc, char *argv[])
 
     QQmlApplicationEngine engine;
     QStringList startupWarnings;
+    // 收集 QML 启动告警，加载失败时写入诊断日志。
     QObject::connect(&engine,
                      &QQmlApplicationEngine::warnings,
                      &app,

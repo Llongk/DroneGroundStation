@@ -21,6 +21,7 @@ constexpr qsizetype kMaximumBufferedBytes = 64 * 1024;
 constexpr int kRetryIntervalMs = 2000;
 constexpr int kConnectTimeoutMs = 3500;
 
+//! 判断网卡地址是否适合用于发现 STM32 AP 网关。
 bool usableIpv4(const QHostAddress &address)
 {
     return address.protocol() == QAbstractSocket::IPv4Protocol
@@ -54,6 +55,7 @@ SensorBackend::SensorBackend(QObject *parent)
             &QTimer::timeout,
             this,
             &SensorBackend::attemptConnection);
+    // 连接超时后中止 socket 并安排下一次尝试。
     connect(m_connectTimeout, &QTimer::timeout, this, [this]() {
         if (m_phoneDeviceActive)
             return;
@@ -63,6 +65,7 @@ SensorBackend::SensorBackend(QObject *parent)
             scheduleReconnect();
         }
     });
+    // 遥测长时间未更新时断开并重新建立连接。
     connect(m_telemetryWatchdog, &QTimer::timeout, this, [this]() {
         if (m_phoneDeviceActive)
             return;
@@ -459,6 +462,7 @@ bool SensorBackend::sendFlightCommand(const QString &command,
     emit commandStateChanged();
 
     const qulonglong sentSequence = m_commandSequence;
+    // 三秒内没有匹配 ACK 时结束命令等待状态。
     QTimer::singleShot(3000, this, [this, sentSequence]() {
         if (m_commandPending && m_pendingCommandSequence == sentSequence) {
             m_commandPending = false;

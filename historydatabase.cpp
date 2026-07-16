@@ -41,6 +41,7 @@ constexpr double kStm32AltitudeMin = 0.0;
 constexpr double kStm32AltitudeMax = 500.0;
 constexpr double kStm32RthDistanceMax = 2000.0;
 
+//! 定位项目根目录；独立部署时回退到可执行文件目录。
 QString portableProjectDirectory()
 {
     // During development the executable is normally inside
@@ -60,6 +61,7 @@ QString portableProjectDirectory()
     return applicationDirectory;
 }
 
+//! 将会话聚合查询的一行转换为历史页面需要的字段映射。
 QVariantMap recordMap(const QSqlQuery &query, const QString &source)
 {
     QVariantMap row;
@@ -388,6 +390,7 @@ QVariantList HistoryDatabase::getHistoryRecords() const
             result.append(row);
         }
     }
+    // 将手机和 STM32 会话统一按开始时间倒序排列。
     std::sort(result.begin(), result.end(), [](const QVariant &left, const QVariant &right) {
         return left.toMap().value(QStringLiteral("startTime")).toString()
             > right.toMap().value(QStringLiteral("startTime")).toString();

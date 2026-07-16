@@ -121,11 +121,13 @@ const droneData = {
     time: ""
 };
 
+// 更新页面状态提示和对应视觉状态。
 function setStatus(message, type) {
     elements.status.textContent = message;
     elements.status.className = "status" + (type ? " " + type : "");
 }
 
+// 规范化用户填写或当前页面推导出的 Qt 服务地址。
 function normalizedServerUrl() {
     let value = elements.server.value.trim().replace(/\/+$/, "");
     if (value && !/^https?:\/\//i.test(value)) {
@@ -134,16 +136,19 @@ function normalizedServerUrl() {
     return value;
 }
 
+// 返回 GPS 数据上传端点。
 function gpsEndpoint() {
     const base = normalizedServerUrl();
     return base ? base + "/gps" : "";
 }
 
+// 返回温湿度数据上传端点。
 function sensorEndpoint() {
     const base = normalizedServerUrl();
     return base ? base + "/sensor" : "";
 }
 
+// 在页面上显示当前实际使用的服务地址。
 function updateEndpointHint() {
     const endpoint = gpsEndpoint();
     elements.endpointHint.textContent = endpoint
@@ -159,6 +164,7 @@ elements.server.addEventListener("change", function () {
 });
 updateEndpointHint();
 
+// 将最近一次定位和传感器状态渲染到手机页面。
 function renderPosition() {
     elements.lat.textContent = droneData.latitude.toFixed(7);
     elements.lon.textContent = droneData.longitude.toFixed(7);
@@ -167,6 +173,7 @@ function renderPosition() {
     elements.time.textContent = droneData.time;
 }
 
+// 处理浏览器定位成功结果并更新待上传 GPS 数据。
 function onPosition(position) {
     const coords = position.coords;
     droneData.latitude = coords.latitude;
@@ -182,6 +189,7 @@ function onPosition(position) {
     sendGps();
 }
 
+// 将浏览器定位错误转换为用户可读提示。
 function onPositionError(error) {
     const messages = {
         1: "定位权限被拒绝，请在浏览器的网站设置中允许位置权限。",
@@ -195,6 +203,7 @@ function onPositionError(error) {
     setStatus(message, "error");
 }
 
+// 请求定位权限并启动持续位置监听。
 function startGps() {
     const endpoint = gpsEndpoint();
     if (!endpoint) {
@@ -220,6 +229,7 @@ function startGps() {
     );
 }
 
+// 将当前 GPS、姿态和电量以 JSON 上传到 Qt。
 async function sendGps() {
     if (!hasGpsFix || sending) {
         return;
@@ -250,6 +260,7 @@ async function sendGps() {
     }
 }
 
+// 校验并上传用户输入的环境温湿度。
 async function sendSensor() {
     if (sensorSending) {
         return;
@@ -293,6 +304,7 @@ async function sendSensor() {
     }
 }
 
+// 请求设备方向权限并监听手机姿态变化。
 async function startOrientation() {
     try {
         if (typeof DeviceOrientationEvent !== "undefined"

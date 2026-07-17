@@ -30,5 +30,8 @@ database/*.db-wal
 database/*.db-shm
 !database/.gitkeep
 
+# Local EMQX credentials. The public CA certificate remains portable.
+config/cloud.json
+
 # Runtime logs
 *.log

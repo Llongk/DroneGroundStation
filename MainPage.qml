@@ -126,6 +126,29 @@ Rectangle {
                 Layout.fillWidth: true
             }
             Button {
+                id: cloudButton
+
+                Layout.preferredHeight: 34
+                Layout.preferredWidth: 112
+                text: cloudBackend.connected ? "云端 · 在线" : "云端设置"
+
+                background: Rectangle {
+                    border.color: cloudBackend.connected ? "#55dbac" : "#2d687e"
+                    color: cloudBackend.connected ? "#176a53" : "#173848"
+                    radius: 8
+                }
+                contentItem: Text {
+                    color: "#f2fbff"
+                    font.bold: true
+                    font.pixelSize: 12
+                    horizontalAlignment: Text.AlignHCenter
+                    text: cloudButton.text
+                    verticalAlignment: Text.AlignVCenter
+                }
+
+                onClicked: cloudSettingsPopup.open()
+            }
+            Button {
                 id: historyButton
 
                 Layout.preferredHeight: 34
@@ -450,6 +473,167 @@ Rectangle {
                 easing.type: Easing.InOutQuad
                 from: 1.0
                 to: 0.18
+            }
+        }
+    }
+    Popup {
+        id: cloudSettingsPopup
+
+        anchors.centerIn: parent
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        focus: true
+        height: 520
+        modal: true
+        padding: 0
+        width: 560
+
+        background: Rectangle {
+            border.color: cloudBackend.connected ? "#43c99a" : "#315568"
+            border.width: 1
+            color: "#101d27"
+            radius: 14
+        }
+        contentItem: ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 22
+            spacing: 10
+
+            Text {
+                color: "#eef7fb"
+                font.bold: true
+                font.pixelSize: 22
+                text: "EMQX 云端上传"
+            }
+            Text {
+                Layout.fillWidth: true
+                color: cloudBackend.connected ? "#63dfae" : "#9fb4bf"
+                elide: Text.ElideRight
+                font.pixelSize: 12
+                text: cloudBackend.status + "  ·  待上传 " + cloudBackend.pendingCount + " 条"
+            }
+            Text {
+                color: "#89a8b8"
+                font.pixelSize: 12
+                text: "连接地址"
+            }
+            TextField {
+                id: cloudHostField
+
+                Layout.fillWidth: true
+                selectByMouse: true
+                text: cloudBackend.host
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 10
+
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 4
+
+                    Text {
+                        color: "#89a8b8"
+                        font.pixelSize: 12
+                        text: "TLS 端口"
+                    }
+                    TextField {
+                        id: cloudPortField
+
+                        Layout.fillWidth: true
+                        inputMethodHints: Qt.ImhDigitsOnly
+                        selectByMouse: true
+                        text: String(cloudBackend.port)
+                        validator: IntValidator { bottom: 1; top: 65535 }
+                    }
+                }
+                ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 4
+
+                    Text {
+                        color: "#89a8b8"
+                        font.pixelSize: 12
+                        text: "认证用户名"
+                    }
+                    TextField {
+                        id: cloudUsernameField
+
+                        Layout.fillWidth: true
+                        selectByMouse: true
+                        text: cloudBackend.username
+                    }
+                }
+            }
+            Text {
+                color: "#89a8b8"
+                font.pixelSize: 12
+                text: "认证密码"
+            }
+            TextField {
+                id: cloudPasswordField
+
+                Layout.fillWidth: true
+                echoMode: TextInput.Password
+                placeholderText: "首次启用时输入；留空表示保留已保存密码"
+                selectByMouse: true
+            }
+            Text {
+                color: "#89a8b8"
+                font.pixelSize: 12
+                text: "客户端 ID"
+            }
+            TextField {
+                id: cloudClientIdField
+
+                Layout.fillWidth: true
+                selectByMouse: true
+                text: cloudBackend.clientId
+            }
+            CheckBox {
+                id: cloudEnabledCheck
+
+                checked: cloudBackend.enabled
+                text: "启用 TLS 云端上传和 SQLite 离线补传"
+            }
+            Text {
+                Layout.fillWidth: true
+                color: "#7895a4"
+                font.pixelSize: 11
+                text: "手机：dgs/UAV_01/phone/telemetry\nSTM32：dgs/UAV_01/stm32/telemetry"
+            }
+            Item {
+                Layout.fillHeight: true
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 10
+
+                Button {
+                    text: "立即重连"
+                    onClicked: cloudBackend.reconnect()
+                }
+                Item {
+                    Layout.fillWidth: true
+                }
+                Button {
+                    text: "取消"
+                    onClicked: cloudSettingsPopup.close()
+                }
+                Button {
+                    text: "保存并应用"
+
+                    onClicked: {
+                        if (cloudBackend.configure(cloudHostField.text,
+                                                   Number(cloudPortField.text),
+                                                   cloudUsernameField.text,
+                                                   cloudPasswordField.text,
+                                                   cloudClientIdField.text,
+                                                   cloudEnabledCheck.checked)) {
+                            cloudPasswordField.clear();
+                            cloudSettingsPopup.close();
+                        }
+                    }
+                }
             }
         }
     }

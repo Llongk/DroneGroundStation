@@ -23,6 +23,8 @@ qt_add_executable(appDroneGroundStation
     sensorbackend.h
     historydatabase.cpp
     historydatabase.h
+    cloudbackend.cpp
+    cloudbackend.h
 )
 
 qt_add_qml_module(appDroneGroundStation

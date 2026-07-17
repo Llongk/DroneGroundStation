@@ -1,5 +1,15 @@
 # DroneGroundStation 无人机地面控制站
 
+> 本仓库同时包含桌面地面站与云端监控网页。Qt/C++ 主工程位于仓库根目录，云端工程位于 [`cloud-dashboard/`](cloud-dashboard/)。
+
+## 文档导航
+
+- [`docs/操作使用说明.md`](docs/操作使用说明.md)：登录、手机接入、STM32 接入、飞控与历史数据操作。
+- [`docs/技术流程文档.md`](docs/技术流程文档.md)：桌面端类职责、协议、数据库和函数调用链。
+- [`docs/云端部署与跨设备访问.md`](docs/云端部署与跨设备访问.md)：EMQX、HTTPS、D1、网页部署、迁移和故障排查。
+- [`cloud-dashboard/README.md`](cloud-dashboard/README.md)：云端网页工程开发、接口、数据表和部署说明。
+- [`config/cloud.example.json`](config/cloud.example.json)：不含真实密钥的桌面端云配置模板。
+
 ## 项目简介
 
 DroneGroundStation 是一个基于 Qt 6、Qt Quick/QML 和 C++17 开发的无人机地面控制站。项目把手机浏览器传感器采集、STM32 AP 热点遥测、人工飞行控制、实时地图、曲线分析、异常告警和 SQLite 历史数据统一到一个桌面程序中。

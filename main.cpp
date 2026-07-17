@@ -8,6 +8,7 @@
 #include <QFile>
 
 #include "backend.h"
+#include "cloudbackend.h"
 #include "historydatabase.h"
 #include "sensorbackend.h"
 
@@ -22,12 +23,14 @@ int main(int argc, char *argv[])
     Backend backend;
     SensorBackend sensorBackend;
     HistoryDatabase historyDatabase(&backend, &sensorBackend);
+    CloudBackend cloudBackend(&backend, &sensorBackend, &historyDatabase);
 
     // These objects live on main()'s stack and must never be adopted or
     // garbage-collected by QML while StackView pages are created/destroyed.
     QQmlEngine::setObjectOwnership(&backend, QQmlEngine::CppOwnership);
     QQmlEngine::setObjectOwnership(&sensorBackend, QQmlEngine::CppOwnership);
     QQmlEngine::setObjectOwnership(&historyDatabase, QQmlEngine::CppOwnership);
+    QQmlEngine::setObjectOwnership(&cloudBackend, QQmlEngine::CppOwnership);
 
     // 在手机活动租约变化时切换 STM32 检测状态。
     QObject::connect(&backend,
@@ -54,6 +57,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("backend", &backend);
     engine.rootContext()->setContextProperty("sensorBackend", &sensorBackend);
     engine.rootContext()->setContextProperty("historyDatabase", &historyDatabase);
+    engine.rootContext()->setContextProperty("cloudBackend", &cloudBackend);
 
     engine.loadFromModule("DroneGroundStation", "Main");
     if (engine.rootObjects().isEmpty()) {

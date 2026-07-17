@@ -1,0 +1,10 @@
+{
+  "clientId": "DGS-YOUR-PC",
+  "enabled": false,
+  "host": "your-emqx-host.example.com",
+  "historyIngestKey": "CHANGE_ME_AND_NEVER_COMMIT_THE_REAL_KEY",
+  "historyIngestUrl": "https://your-dashboard.example.com/api/ingest",
+  "password": "CHANGE_ME_AND_NEVER_COMMIT_THE_REAL_PASSWORD",
+  "port": 8883,
+  "username": "DroneGroundStation"
+}
